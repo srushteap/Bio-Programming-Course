@@ -269,3 +269,107 @@ class FastAreader :
                     sequence += ''.join(line.rstrip().split()).upper()
 
         yield header,sequence
+
+class OrfFinder:
+    '''
+    Takes in a sequence of a FASTA file and stores ORFs in a lists of dictionaries.
+    '''
+    # Define start and stop codons and the complement dictionary for DNA sequences
+    start_codons = ["ATG"]
+    stop_codons = ["TAG", "TAA", "TGA"]
+    complement = {'A': 'T', 'C': 'G', 'G': 'C', 'T': 'A'}
+
+    def __init__(self, seq):
+        # Initialize OrfFinder object with the DNA sequence
+        self.seq = seq
+        self.orfs = []  # List to store identified ORFs
+
+    def findOrfs(self):
+        '''Find open reading frames (ORFs) in the provided DNA sequence.'''
+        start_position = []  # Keeps track of the start codon positions
+        foundStart = 0
+        foundCodon = 0
+
+        for frame in range(0, 3):  # Iterate through three reading frames
+            foundStart = 0
+            foundCodon = 0
+            start_position = []  # Clear start position list for each frame
+            for i in range(frame, len(self.seq), 3):  # Iterate over the sequence in sets of three nucleotides
+                codon = self.seq[i:i + 3]  # Codon length is 3 nucleotides
+                if codon == 'ATG':
+                    start_position.append(i)
+                    foundStart = 1
+                    foundCodon = 1
+                if codon in OrfFinder.stop_codons and foundStart:
+                    start = start_position[0] + 1 - frame
+                    stop = i + 3
+                    length = stop - start + 1
+                    self.saveOrf((frame % 3) + 1, start, stop, length)
+                    start_position = []
+                    foundStart = 0
+                    foundCodon = 1
+                if not foundCodon and codon in OrfFinder.stop_codons and foundStart:
+                    start = 1
+                    stop = i + 3
+                    length = stop - start + 1
+                    self.saveOrf((frame % 3) + 1, start, stop, length)
+                    start_position = []
+                    foundCodon = 1
+            if foundStart:
+                start = start_position[0] + 1
+                stop = len(self.seq)
+                length = stop - start + 1
+                self.saveOrf((frame % 3) + 1, start, stop, length)
+        return self.orfs
+
+    def revComp(self):
+        '''Return the reverse complement of the DNA sequence.'''
+        revSeq = ''.join([self.complement[base] for base in self.seq[::-1]])
+        return revSeq
+
+    def findRevOrfs(self):
+        '''Find open reading frames (ORFs) in the reverse complement of the DNA sequence.'''
+        reverse = self.revComp()  # Get the reverse complement
+        start_position = []
+        foundStart = 0
+        foundCodon = 0
+
+        for frame in range(0, 3):  # Iterate through three reading frames
+            foundStart = 0
+            foundCodon = 0
+            start_position = []  # Clear start position list for each frame
+            for i in range(frame, len(reverse), 3):  # Iterate over the sequence in sets of three nucleotides
+                codon = reverse[i:i + 3]  # Codon length is 3 nucleotides
+                if codon == 'ATG':
+                    start_position.append(i)
+                    foundStart = 1
+                    foundCodon = 1
+                if codon in OrfFinder.stop_codons and foundStart:
+                    stop = len(reverse) - start_position[0]
+                    start = len(reverse) - (i + 2)
+                    if frame == 1:
+                        stop += 1
+                    elif frame == 2:
+                        stop += 2
+                    length = stop - start + 1
+                    self.saveOrf(-1 * ((frame % 3) + 1), start, stop, length)
+                    start_position = []
+                    foundStart = 0
+                    foundCodon = 1
+                if not foundCodon and codon in OrfFinder.stop_codons and foundStart:
+                    start = len(reverse) - i - 2
+                    stop = len(reverse)
+                    length = stop - start + 1
+                    self.saveOrf(-1 * ((frame % 3) + 1), start, stop, length)
+                    start_position = []
+                    foundCodon = 1
+            if foundStart:
+                start = start_position[0] + 1
+                stop = 1
+                length = stop - start + 1
+                self.saveOrf(-1 * ((frame % 3) + 1), start, stop, length)
+        return self.orfs
+
+    def saveOrf(self, frame, start, stop, length):
+        """Save ORF information."""
+        self.orfs.append({'frame': frame, 'start': start, 'stop': stop, 'length': length})
